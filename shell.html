@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>My WebAssembly App</title>
+    <style>
+        body { margin: 0; background-color: black; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        canvas { border: 0px none; background-color: black; }
+    </style>
+</head>
+<body>
+    <!-- The canvas where your game/app will render -->
+    <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+
+    <script type='text/javascript'>
+        var Module = {
+            canvas: (function() {
+                var canvas = document.getElementById('canvas');
+                return canvas;
+            })()
+        };
+    </script>
+    
+    <!-- Emscripten injects the compiled application script here -->
+    {{{ SCRIPT }}}
+</body>
+</html>
