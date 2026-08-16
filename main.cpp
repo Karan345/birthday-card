@@ -13,6 +13,14 @@ struct ConfettiParticle {
     float rotationSpeed;
 };
 
+// Balloon structure for procedural rising balloons
+struct Balloon {
+    float x;
+    float y;
+    float speed;
+    Color color;
+};
+
 // Function to spawn an explosive burst of confetti from a target center point
 void SpawnConfetti(std::vector<ConfettiParticle>& particles, Vector2 origin) {
     int particleCount = 120;
@@ -29,11 +37,10 @@ void SpawnConfetti(std::vector<ConfettiParticle>& particles, Vector2 origin) {
         ConfettiParticle p;
         p.position = origin;
         
-        // Random angle and velocity for an explosive burst
         float angle = (float)GetRandomValue(0, 360) * (PI / 180.0f);
         float speed = (float)GetRandomValue(150, 500);
         
-        p.velocity = { cosf(angle) * speed, sinf(angle) * speed - 220.0f }; // Slight upward bias
+        p.velocity = { cosf(angle) * speed, sinf(angle) * speed - 220.0f };
         p.color = colors[GetRandomValue(0, 5)];
         p.size = (float)GetRandomValue(6, 14);
         p.rotation = (float)GetRandomValue(0, 360);
@@ -49,13 +56,10 @@ int main() {
     const int screenHeight = 700;
 
     InitWindow(screenWidth, screenHeight, "Happy Birthday, Auntie Pooty!");
-    
-    // Initialize the audio device for music/sound playback
     InitAudioDevice();
-
     SetTargetFPS(60);
 
-    // 2. Load Assets (Font, Present Image, and Background Music)
+    // 2. Load Assets (Font, Images, and Background Music)
     Font customFont = LoadFontEx("assets/PTSans-BoldItalic.ttf", 96, 0, 0);
     if (customFont.texture.id == 0) {
         customFont = GetFontDefault();
@@ -64,11 +68,10 @@ int main() {
     }
 
     Texture2D presentTexture = LoadTexture("assets/present.png");
+    Texture2D cakeTexture = LoadTexture("assets/cake.png");
 
-    // Load background music using your exact filename
     Music bgm = LoadMusicStream("assets/gr0za-birthday-happy-birthday-503371.mp3");
     bool musicLoaded = (bgm.stream.buffer != nullptr);
-    
     if (musicLoaded) {
         PlayMusicStream(bgm);
     }
@@ -77,6 +80,28 @@ int main() {
     bool cardOpened = false;
     std::vector<ConfettiParticle> confettiParticles;
     bool confettiSpawned = false;
+    float cakeAnimProgress = 0.0f;    
+
+    // Initialize 5 Equidistant Balloons
+    std::vector<Balloon> balloons;
+    int numBalloons = 5;
+    Color balloonPalette[] = { 
+        { 219, 48, 34, 255 },   // festiveRed
+        { 245, 197, 24, 255 },  // festiveGold
+        { 52, 152, 219, 255 },  // Blue
+        { 46, 204, 113, 255 },  // Green
+        { 155, 89, 182, 255 }   // Purple
+    };
+
+    float spacing = (float)screenWidth / (numBalloons + 1);
+    for (int i = 0; i < numBalloons; i++) {
+        Balloon b;
+        b.x = spacing * (i + 1);
+        b.y = (float)screenHeight + 80.0f + (i * 50.0f); // Staggered start heights below screen
+        b.speed = (float)GetRandomValue(90, 150);         // Various speeds
+        b.color = balloonPalette[i];
+        balloons.push_back(b);
+    }
 
     // Colors
     Color softCream = { 253, 246, 227, 255 };
@@ -86,10 +111,8 @@ int main() {
 
     // 3. Main Loop
     while (!WindowShouldClose()) {
-        
         float dt = GetFrameTime();
 
-        // Keep the music stream streaming and looping smoothly
         if (musicLoaded) {
             UpdateMusicStream(bgm);
             if (!IsMusicStreamPlaying(bgm)) {
@@ -110,25 +133,41 @@ int main() {
         bool clickedPresent = (CheckCollisionPointRec(mousePos, presentBounds) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT));
 
         if (IsKeyPressed(KEY_SPACE) || clickedPresent) {
-            cardOpened = !cardOpened; // Toggle state
-            
-            // Trigger confetti burst the moment the card opens via click
+            cardOpened = !cardOpened;
             if (cardOpened && !confettiSpawned) {
                 SpawnConfetti(confettiParticles, { posX + pWidth / 2.0f, posY + pHeight / 2.0f });
                 confettiSpawned = true;
             } else if (!cardOpened) {
-                confettiSpawned = false; // Reset if toggled closed
+                confettiSpawned = false;
             }
         }
 
-        // Update Confetti Physics (Gravity, Movement, Rotation)
+        // Smoothly animate cake floating up or down
+        if (cardOpened) {
+            cakeAnimProgress += dt * 3.0f;
+            if (cakeAnimProgress > 1.0f) cakeAnimProgress = 1.0f;
+
+            // Update balloon positions upward when card is open
+            for (auto& b : balloons) {
+                b.y -= b.speed * dt;
+                // Loop back to bottom when they float off screen
+                if (b.y < -120.0f) {
+                    b.y = (float)screenHeight + 100.0f;
+                    b.speed = (float)GetRandomValue(90, 150);
+                }
+            }
+        } else {
+            cakeAnimProgress -= dt * 3.0f;
+            if (cakeAnimProgress < 0.0f) cakeAnimProgress = 0.0f;
+        }
+
+        // Update Confetti Physics
         for (auto it = confettiParticles.begin(); it != confettiParticles.end(); ) {
             it->position.x += it->velocity.x * dt;
             it->position.y += it->velocity.y * dt;
-            it->velocity.y += 500.0f * dt; // Gravity pulling downward
+            it->velocity.y += 500.0f * dt;
             it->rotation += it->rotationSpeed * dt;
 
-            // Remove particles when they fall off screen
             if (it->position.y > (float)screenHeight + 50) {
                 it = confettiParticles.erase(it);
             } else {
@@ -140,7 +179,7 @@ int main() {
         BeginDrawing();
             ClearBackground(softCream);
 
-            // Draw a decorative banner background shape
+            // Draw banner background shape
             DrawRectangle(0, 50, screenWidth, 210, festiveRed);
 
             // Draw Centered Title Text
@@ -159,20 +198,16 @@ int main() {
                        {(screenWidth - subSize.x) / 2.0f, 180.0f}, 
                        subFontSize, 2.0f, festiveGold);
 
-            // Conditional Rendering based on whether the card is "opened"
+            // Conditional Rendering based on whether the card is opened
             if (!cardOpened) {
-                // Draw present image with a wobbling rotation effect
                 if (presentTexture.id != 0) {
-                    // Calculate a smooth wobble angle using time
-                    float wobbleRotation = sinf((float)GetTime() * 10.0f) * 6.0f; // 6 degrees tilt max
-
+                    float wobbleRotation = sinf((float)GetTime() * 10.0f) * 6.0f;
                     Rectangle sourceRec = { 0.0f, 0.0f, (float)presentTexture.width, (float)presentTexture.height };
                     Rectangle destRec = { posX + pWidth / 2.0f, posY + pHeight / 2.0f, pWidth, pHeight };
                     Vector2 origin = { pWidth / 2.0f, pHeight / 2.0f };
 
                     DrawTexturePro(presentTexture, sourceRec, destRec, origin, wobbleRotation, WHITE);
                 } else {
-                    // Fallback text if image isn't found
                     const char* promptText = "Click to Open Card";
                     float promptFontSize = 24.0f;
                     Vector2 promptSize = MeasureTextEx(customFont, promptText, promptFontSize, 1.0f);
@@ -181,19 +216,56 @@ int main() {
                                promptFontSize, 1.0f, darkText);
                 }
             } else {
-                // Revealed Personal Message Box
-                DrawRectangleRounded({200, 320, 600, 250}, 0.1f, 4, WHITE);
-                DrawRectangleRoundedLines({200, 320, 600, 250}, 0.1f, 4, festiveGold);
+                // Revealed Personal Message Box (Increased size/height, slightly shrunk width frame)
+                DrawRectangleRounded({220, 305, 560, 280}, 0.1f, 4, WHITE);
+                DrawRectangleRoundedLines({220, 305, 560, 280}, 0.1f, 4, festiveGold);
 
                 const char* msgLine1 = "Wishing you a wonderful year";
                 const char* msgLine2 = "filled with joy, health, happiness and success!";
                 
-                float msgFontSize = 34.0f; // Adjusted to cleanly fit box size
+                float msgFontSize = 34.0f;
                 Vector2 msgSize1 = MeasureTextEx(customFont, msgLine1, msgFontSize, 1.0f);
                 Vector2 msgSize2 = MeasureTextEx(customFont, msgLine2, msgFontSize, 1.0f);
 
-                DrawTextEx(customFont, msgLine1, {(screenWidth - msgSize1.x) / 2.0f, 380.0f}, msgFontSize, 1.0f, darkText);
-                DrawTextEx(customFont, msgLine2, {(screenWidth - msgSize2.x) / 2.0f, 430.0f}, msgFontSize, 1.0f, darkText);
+                DrawTextEx(customFont, msgLine1, {(screenWidth - msgSize1.x) / 2.0f, 370.0f}, msgFontSize, 1.0f, darkText);
+                DrawTextEx(customFont, msgLine2, {(screenWidth - msgSize2.x) / 2.0f, 420.0f}, msgFontSize, 1.0f, darkText);
+            }
+
+            // --- PROCEDURAL RISING BALLOONS (Rendered when card is open) ---
+            if (cardOpened) {
+                float balloonRadius = 24.0f;
+                float stringLength = 70.0f;
+
+                for (const auto& b : balloons) {
+                    // Draw black string hanging down from the balloon knot
+                    DrawLineV({b.x, b.y + balloonRadius}, {b.x, b.y + balloonRadius + stringLength}, BLACK);
+                    
+                    // Draw round balloon body
+                    DrawCircleV({b.x, b.y}, balloonRadius, b.color);
+                    
+                    // Draw small knot triangle at the bottom of the balloon
+                    DrawTriangle(
+                        {b.x, b.y + balloonRadius + 3.0f}, 
+                        {b.x - 4.0f, b.y + balloonRadius - 1.0f}, 
+                        {b.x + 4.0f, b.y + balloonRadius - 1.0f}, 
+                        b.color
+                    );
+                }
+            }
+
+            // --- CAKE FLOATING ANIMATION AT BOTTOM EDGE ---
+            if (cakeTexture.id != 0 && cakeAnimProgress > 0.0f) {
+                float cakeScale = 1.0f;
+                float cWidth = cakeTexture.width * cakeScale;
+                float cHeight = cakeTexture.height * cakeScale;
+                
+                float targetY = screenHeight - (cHeight * 0.75f);
+                float startY = screenHeight + 50.0f;
+                
+                float currentY = startY + (targetY - startY) * cakeAnimProgress;
+                float cakeX = (screenWidth - cWidth) / 2.0f;
+
+                DrawTextureEx(cakeTexture, { cakeX, currentY }, 0.0f, cakeScale, WHITE);
             }
 
             // Draw Confetti Particles on top of everything
@@ -206,7 +278,7 @@ int main() {
                 );
             }
 
-            // Draw static decorative confetti dots in background corners
+            // Background decorative dots
             DrawCircle(150, 300, 8, festiveRed);
             DrawCircle(850, 350, 10, festiveGold);
             DrawCircle(200, 500, 6, festiveGold);
@@ -216,15 +288,10 @@ int main() {
     }
 
     // 6. Cleanup
-    if (customFont.texture.id != 0) {
-        UnloadFont(customFont);
-    }
-    if (presentTexture.id != 0) {
-        UnloadTexture(presentTexture);
-    }
-    if (musicLoaded) {
-        UnloadMusicStream(bgm);
-    }
+    if (customFont.texture.id != 0) UnloadFont(customFont);
+    if (presentTexture.id != 0) UnloadTexture(presentTexture);
+    if (cakeTexture.id != 0) UnloadTexture(cakeTexture);
+    if (musicLoaded) UnloadMusicStream(bgm);
     
     CloseAudioDevice();
     CloseWindow();
